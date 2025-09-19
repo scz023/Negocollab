@@ -1,0 +1,499 @@
+name: opv2v_m1_m3_nego.yaml
+root_dir: "dataset/OPV2V/train"
+validate_dir: "dataset/OPV2V/validate"
+test_dir: "dataset/OPV2V/test"
+
+yaml_parser: "load_general_params"
+
+train_setting:
+  nego:
+    train_params:
+      batch_size: 2
+      epoches: &epoches_nego 31
+      eval_freq: 2
+      save_freq: 2
+      max_cav: 5
+
+    optimizer:
+      core_method: Adam
+      lr: 0.002
+      args:
+        eps: 1e-10
+        weight_decay: 1e-4
+
+    lr_scheduler:
+        core_method: cosineannealwarm
+        epoches: *epoches_nego
+        warmup_lr: 2e-5
+        warmup_epoches: 5
+        lr_min: 5e-6
+  nsd:
+    train_params:
+      batch_size: 1
+      epoches: &epoches_nsd 21
+      eval_freq: 2
+      save_freq: 2
+      max_cav: 5
+
+    optimizer:
+      core_method: Adam
+      lr: 0.001
+      args:
+        eps: 1e-10
+        weight_decay: 1e-4
+    lr_scheduler:
+      core_method: multistep #step, multistep and Exponential support
+      gamma: 0.1
+      step_size: [10, 15, 20]
+
+    # optimizer:
+    #   core_method: Adam
+    #   lr: 0.005
+    #   args:
+    #     eps: 1e-10
+    #     weight_decay: 1e-3    
+    # lr_scheduler:
+    #     core_method: cosineannealwarm
+    #     epoches: *epoches_nsd
+    #     warmup_lr: 2e-5
+    #     warmup_epoches: 5
+    #     lr_min: 5e-6
+
+  consis:
+    train_params:
+      batch_size: 2
+      epoches: &epoches_consis !add [31,  *epoches_nsd]
+      eval_freq: 2
+      save_freq: 2
+      max_cav: 5
+
+    optimizer:
+      core_method: Adam
+      lr: 0.001
+      args:
+        eps: 1e-10
+        weight_decay: 1e-4
+
+    lr_scheduler:
+        core_method: cosineannealwarm
+        epoches: *epoches_consis
+        warmup_lr: 2e-5
+        warmup_epoches: 5
+        lr_min: 5e-6
+
+comm_range: 70
+input_source: ['lidar']
+label_type: 'lidar'
+cav_lidar_range: &cav_lidar [-102.4, -51.2, -3, 102.4, 51.2, 1]
+# cav_lidar_range: &cav_lidar [-204.8, -102.4, -3, 204.8, 102.4, 1]
+
+
+heter:
+  assignment_path: "opencood/logs/heter_modality_assign/opv2v_4modality.json" 
+  ego_modality: &ego_modality "m1&m3"
+  mapping_dict: &mapping_dict
+    m1: m1
+    m2: m1
+    m3: m3
+    m4: m3
+  lidar_channels_dict:
+    m3: 32
+  modality_setting:
+    m1:
+      sensor_type: &sensor_type_m1 'lidar'
+      core_method: &core_method_m1 "point_pillar"
+
+      # lidar requires preprocess
+      preprocess:
+        # options: BasePreprocessor, VoxelPreprocessor, BevPreprocessor
+        core_method: 'SpVoxelPreprocessor'
+        args:
+          voxel_size: &voxel_size [0.4, 0.4, 4]
+          max_points_per_voxel: 32
+          max_voxel_train: 32000
+          max_voxel_test: 70000
+        # lidar range for each individual cav.
+        cav_lidar_range: *cav_lidar
+    m3:
+      sensor_type: &sensor_type_m3 'lidar'
+      core_method: &core_method_m3 "second"
+
+      # lidar requires preprocess
+      preprocess:
+        # options: BasePreprocessor, VoxelPreprocessor, BevPreprocessor
+        core_method: 'SpVoxelPreprocessor'
+        args:
+          voxel_size: &voxel_size_m3 [0.1, 0.1, 0.1]
+          max_points_per_voxel: 5
+          max_voxel_train: 32000
+          max_voxel_test: 70000
+        # lidar range for each individual cav.
+        cav_lidar_range: *cav_lidar
+
+
+fusion:
+  # core_method: 'intermediateheterpair'
+  core_method: 'intermediateheterpaircontrastive'
+  dataset: 'opv2v'
+  args: 
+    proj_first: false
+    grid_conf: None # place-holder
+    data_aug_conf: None # place-holder
+
+# fusion:
+#   core_method: 'lateheterpair'
+#   dataset: 'opv2v'
+#   args: 
+#     proj_first: false
+#     grid_conf: None # place-holder
+#     data_aug_conf: None # place-holder
+
+data_augment: # no use in intermediate fusion
+  - NAME: random_world_flip
+    ALONG_AXIS_LIST: [ 'x' ]
+
+  - NAME: random_world_rotation
+    WORLD_ROT_ANGLE: [ -0.78539816, 0.78539816 ]
+
+  - NAME: random_world_scaling
+    WORLD_SCALE_RANGE: [ 0.95, 1.05 ]
+
+preprocess:
+  # options: BasePreprocessor, VoxelPreprocessor, BevPreprocessor
+  core_method: 'SpVoxelPreprocessor'
+  args:
+    voxel_size: [0.4, 0.4, 4] # useful
+    max_points_per_voxel: 1 # useless
+    max_voxel_train: 1 # useless
+    max_voxel_test: 1 # useless
+  # lidar range for each individual cav.
+  cav_lidar_range: *cav_lidar
+
+# anchor box related
+postprocess:
+  core_method: 'VoxelPostprocessorContrastive' # VoxelPostprocessor, BevPostprocessor supported
+  # core_method: 'VoxelPostprocessor'
+  gt_range: *cav_lidar
+  anchor_args:
+    cav_lidar_range: *cav_lidar
+    l: 3.9
+    w: 1.6
+    h: 1.56
+    r: &anchor_yaw [0, 90]
+    feature_stride: 2
+    num: &anchor_num 2
+  target_args:
+    pos_threshold: 0.6
+    neg_threshold: 0.45
+    score_threshold: 0.2
+  order: 'hwl' # hwl or lwh
+  max_num: 150 # maximum number of objects in a single frame. use this number to make sure different frames has the same dimension in the same batch
+  nms_thresh: 0.15
+  dir_args: &dir_args
+    dir_offset: 0.7853
+    num_bins: 2
+    anchor_yaw: *anchor_yaw
+
+# model related
+model:
+  core_method: 
+    train_nego: heter_pyramid_nego
+    train_nsd: heter_nego
+    train_consis: heter_pyramid_consis
+    inf_pub: heter_nego_collab_in_pub
+    inf_local: heter_nego_collab_in_local
+
+  args:
+    mapping_dict: *mapping_dict
+    lidar_range: *cav_lidar
+    comm_same_init: False
+    # supervise_single: true
+    mode_cb_same_init: False
+    local_pub_change: True
+    convert_mode: &convert_mode new
+    convert_phase: &convert_phase bf_decom # bf_decom or af_decom
+    w_sigmod: &w_sigmod False
+    pub:
+      cb_path: pub_codebook/pub_codebook.pth # 相对路径, 在train阶段根据模型路径换算为绝对路径
+      query_emb_path: pub_codebook/pub_query_emb.pth 
+      use_alliance: False
+      # num_code: 8
+      # dim_code: 64
+      cor_cosim_threhold: &cor_cos_thre 0.75 # For consis stage and inf, judge correlation about codes for comm
+      sup_cosim_threhold: &sup_cos_thre 0.15 # For nsd stage, try best to close the codes
+      the_change_epoch: &the_change_epoch 1
+      C_uni: &C_uni 64
+      # Compute from: H_uni: 128, W_uni: 256; unify_range: [-102.4, -51.2, -3, 102.4, 51.2, 1]
+      granularity_H: &gra_H 0.8
+      granularity_W: &gra_W 0.8
+
+    m1:
+      allied: false
+      model_dir: stage0_m1_collab
+      core_method: *core_method_m1
+      sensor_type: *sensor_type_m1
+
+      encoder_args:
+        voxel_size: *voxel_size
+        lidar_range: *cav_lidar
+        pillar_vfe:
+          use_norm: true
+          with_distance: false
+          use_absolute_xyz: true
+          num_filters: [64]
+        point_pillar_scatter:
+          num_features: 64
+
+      backbone_args:
+        layer_nums: [3]
+        layer_strides: [2]
+        num_filters: [64]
+  
+      aligner_args:
+        core_method: identity
+
+      focuser_args:
+        dim: 64
+        anchor_number: *anchor_num    
+        threshold: 0.01
+        gaussian_smooth:
+          k_size: 5
+          c_sigma: 1.0 
+
+      comm_args:  
+        num_codes: &m1_num_code 16
+        dim: *C_uni
+        unify_parameters:
+          # pub_cb_supervise: &pub_cd true
+          # cosim_threhold: *cos_thre
+          C_uni: *C_uni
+          # Compute from: H_uni: 128, W_uni: 256; unify_range: [-102.4, -51.2, -3, 102.4, 51.2, 1]
+          granularity_H: *gra_H
+          granularity_W: *gra_W
+        resizer:
+          reduce_raito: 2 
+        recombiner:
+          core_method: convnext
+          spatial_align: false
+          args:
+            num_of_blocks: 3
+            dim: *C_uni
+        convert_mode: *convert_mode
+        convert_phase: *convert_phase
+        w_sigmod: *w_sigmod
+        converter:
+          num_of_blocks: 1
+          # dim: *m1_num_code # *C_uni: convert bf decom, *convert_phase: convert af decom
+          dim: *C_uni
+          window_size: 2
+          # heads: 1 # 8 of bf_decom, 1 of af_decom
+          heads: 16
+          drop_out: 0.2
+        keyfeat_aligner:
+          num_of_blocks: 1
+          dim: *m1_num_code
+          window_size: 2
+          expand_dim: 4
+          heads: 1
+          drop_out: 0.2
+        gate2pub:
+          input_dim: *m1_num_code
+          expand_dim: 4
+          gatemode: silu
+        filler:
+          depth: 1
+          input_dim: 1
+          heads: 8
+          dim_head: 1
+          window_size: 2
+
+      fusion_net:
+        method: pyramid
+        args: 
+          resnext: true
+          layer_nums: [3, 5, 8]
+          layer_strides: [1, 2, 2]
+          num_filters: [64, 128, 256]
+          upsample_strides: [1, 2, 4]
+          num_upsample_filter: [128, 128, 128]
+          anchor_number: *anchor_num
+
+      shrink_header: 
+        kernal_size: [ 3 ]
+        stride: [ 1 ]
+        padding: [ 1 ]
+        dim: [ 256 ]
+        input_dim: 384 # 128 * 3
+
+      in_head: 256
+
+      anchor_number: *anchor_num
+      dir_args: *dir_args
+    
+    m3:
+      allied: false
+      model_dir: stage0_m3_collab
+      core_method: *core_method_m3
+      sensor_type: *sensor_type_m3
+
+      encoder_args:
+        voxel_size: *voxel_size_m3
+        lidar_range: *cav_lidar
+        mean_vfe:
+          num_point_features: 4
+        spconv:
+          num_features_in: 4
+          num_features_out: 64
+        map2bev:
+          feature_num: 128
+
+      backbone_args:
+        layer_nums: [3]
+        layer_strides: [1]
+        num_filters: [64]
+        inplanes: 128
+      
+      aligner_args:
+        core_method: identity
+
+      focuser_args:
+        dim: 64
+        anchor_number: *anchor_num    
+        threshold: 0.01
+        gaussian_smooth:
+          k_size: 5
+          c_sigma: 1.0 
+
+      comm_args:  
+        num_codes: &m3_num_code 16
+        dim: *C_uni
+        unify_parameters:
+          # pub_cb_supervise: &pub_cd true
+          # cosim_threhold: *cos_thre
+          C_uni: *C_uni
+          # Compute from: H_uni: 128, W_uni: 256; unify_range: [-102.4, -51.2, -3, 102.4, 51.2, 1]
+          granularity_H: *gra_H
+          granularity_W: *gra_W
+        resizer:
+          reduce_raito: 2 
+        recombiner:
+          core_method: convnext
+          spatial_align: false
+          args:
+            num_of_blocks: 3
+            dim: *C_uni
+        convert_mode: *convert_mode
+        convert_phase: *convert_phase
+        w_sigmod: *w_sigmod
+        converter:
+          num_of_blocks: 1
+          # dim: *m3_num_code
+          dim: *C_uni
+          window_size: 2
+          # heads: 1
+          heads: 16
+          drop_out: 0.2
+        keyfeat_aligner:
+          num_of_blocks: 1
+          dim: *m3_num_code
+          expand_dim: 4
+          window_size: 2
+          heads: 1
+          drop_out: 0.2
+        gate2pub:
+          input_dim: *m3_num_code
+          gatemode: silu
+          expand_dim: 4
+        filler:
+          depth: 1
+          input_dim: 1
+          heads: 8
+          dim_head: 1
+          window_size: 2
+
+      fusion_net: 
+        method: pyramid
+        args:  
+          resnext: true
+          layer_nums: [3, 5, 8]
+          layer_strides: [1, 2, 2]
+          num_filters: [64, 128, 256]
+          upsample_strides: [1, 2, 4]
+          num_upsample_filter: [128, 128, 128]
+          anchor_number: *anchor_num
+
+      shrink_header: 
+        kernal_size: [ 3 ]
+        stride: [ 1 ]
+        padding: [ 1 ]
+        dim: [ 256 ]
+        input_dim: 384 # 128 * 3
+
+      in_head: 256
+
+      anchor_number: *anchor_num
+      dir_args: *dir_args
+
+
+loss:
+  core_method: nego_loss
+  args:
+    stage: 'nsd' # 'nsd' or consis
+    # pub_cb_supervise: true
+    # sup_cosim_threhold: *sup_cos_thre
+    invariance:
+      std_rate: 0.01
+      mask_gaussian_smooth:
+        k_size: 5
+        c_sigma: 1.0
+    unify:
+      # method: contrastive
+      # args:
+      #   tau: 0.1
+      #   max_voxel: 30
+
+      method: invariance
+      args:
+        mse_cons: all
+        ratio: 1
+        pre_ratio: 1
+
+    rec:
+      mse_cons: all # all or focus
+    cycle:
+      mse_cons: all
+      ratio: 1
+    convert_cycle:
+      mse_cons: all
+      ratio: 1
+    keyfeat_cycle:
+      mse_cons: all
+      ratio: 1
+
+
+    unit_loss: false
+    pos_cls_weight: 2.0
+    cls:
+      type: 'SigmoidFocalLoss'
+      alpha: 0.25
+      gamma: 2.0
+      weight: 1.0
+    reg:
+      type: 'WeightedSmoothL1Loss'
+      sigma: 3.0
+      codewise: true
+      weight: 2.0
+    dir:
+      type: 'WeightedSoftmaxClassificationLoss'
+      weight: 0.2
+      args: *dir_args
+    depth:
+      weight: 1.0
+    pyramid:
+      relative_downsample: [1, 2, 4]
+      weight: [0.4, 0.2, 0.1]
+
+# lr_scheduler:
+#   core_method: multistep #step, multistep and Exponential support
+#   gamma: 0.1
+#   step_size: [10, 25]
