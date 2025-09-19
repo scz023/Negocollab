@@ -1,5 +1,4 @@
-# NegoCollab
-NegoCollab: A Common Representation Negotiation Approach for Heterogeneous Collaborative Perception [NeurIPS 2025]
+# NegoCollab: A Common Representation Negotiation Approach for Heterogeneous Collaborative Perception [NeurIPS 2025]
 
 ## Repo Feature
 
