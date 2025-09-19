@@ -44,10 +44,12 @@ Create a `dataset` folder under `NegoCollab` and put your data there. Make the n
 NegoCollab/dataset
 
 . 
-├── my_dair_v2x 
-│   ├── v2x_c
-│   ├── v2x_i
-│   └── v2x_v
+├── DAIR_V2X_C_Complemented
+│   ├── cooperative
+│   ├── infrastructure-side
+│   ├── vehicle-side
+│   ├── train.json
+│   └── val.json
 ├── OPV2V
 │   ├── additional
 │   ├── test
@@ -61,15 +63,10 @@ NegoCollab/dataset
 │   ├── test
 │   ├── train
 │   └── validate
-├── v2xsim2-complete
-│   ├── lidarseg
-│   ├── maps
-│   ├── sweeps
-│   └── v1.0-mini
-└── v2xsim2_info
-    ├── v2xsim_infos_test.pkl
-    ├── v2xsim_infos_train.pkl
-    └── v2xsim_infos_val.pkl
+├── V2V4Real
+│   ├── test
+│   ├── train
+│   └── validate
 ```
 
 
